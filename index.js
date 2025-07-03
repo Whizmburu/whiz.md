@@ -51,7 +51,10 @@ const commandsMap = new Map();
 async function loadCommands() {
     addLog('[COMMAND_LOADER] Loading commands...');
     commandsMap.clear();
+    // Re-enable all command categories
     const commandCategories = ['general', 'media', 'group', 'owner', 'fun', 'search', 'download', 'api_driven'];
+
+    addLog('[COMMAND_LOADER] Loading all command categories.', 'INFO');
 
     for (const category of commandCategories) {
         const filePath = path.join(__dirname, 'commands', `${category}.js`);
@@ -118,7 +121,7 @@ function generateCommandListString(loadedCommandsMap, configRef, startTimeRef) {
 
     let listText = `${topBorder}\n`;
     listText += `│ Owner   : ${configRef.ownerName}\n`;
-    listText += `│ Prefix  : ${configRef.prefixes.join(' ')}\n`;
+    listText += `│ Prefix  : (Multiple - e.g., ${configRef.prefixes.join(', ')})\n`; // Updated Prefix display
     listText += `│ Uptime  : ${uptime}\n`;
     // listText += `│ Repo    : ${configRef.repoUrl}\n`; // Already in the default startup, could be redundant
     // listText += `│ Group   : ${formatHiddenLink(configRef.whatsappGroupUrl)}\n`; // Also in footer
@@ -195,21 +198,43 @@ sock.ev.on('connection.update', async (update) => {
       if (botJid) {
         const userName = sock.user?.name || sock.user?.notify || botJid.split('@')[0].split(':')[0]; // Clean up JID if no name
 
+        // Initial connection message - TEMPORARILY SIMPLIFIED
+        // const initialConnectMessage = `👋 Hello ${userName}!\n*${config.botName} v${config.botVersion}* is now online and ready.\n\n🔗 My Repo: ${config.repoUrl}`;
+        // await formatAndSendMessage(sock, botJid, initialConnectMessage, { withLogo: true, addLog: addLog });
+
+        // Generate and send command list as a follow-up message - TEMPORARILY SIMPLIFIED
+        // if (commandsMap.size > 0) {
+        //     const commandListMessage = generateCommandListString(commandsMap, config, startTime);
+        //     await formatAndSendMessage(sock, botJid, commandListMessage, { withLogo: false, addLog: addLog });
+        // } else {
+        //     await formatAndSendMessage(sock, botJid, "No commands currently loaded. Please check configuration.", { withLogo: false, addLog: addLog });
+        // }
+        // addLog("[BAILEYS_CONNECT] Startup notifications sent to self.");
+
+        // Simplified startup message for stability testing - REVERTING TO FULL STARTUP MESSAGES
+        // const simpleStartupMsg = `✅ ${config.botName} connected! Ready for basic commands (e.g., !ping).`;
+        // try {
+        //     await sock.sendMessage(botJid, { text: simpleStartupMsg });
+        //     addLog(`[BAILEYS_CONNECT] Sent simplified startup message to self: ${simpleStartupMsg}`, 'INFO');
+        // } catch (e) {
+        //     addLog(`[BAILEYS_CONNECT] Error sending simplified startup message: ${e.message}`, 'ERROR');
+        // }
+        // console.log("Bot connected successfully and attempted to send test message to self for stability check.");
+
+        // Re-enable full startup messages:
         // Initial connection message
         const initialConnectMessage = `👋 Hello ${userName}!\n*${config.botName} v${config.botVersion}* is now online and ready.\n\n🔗 My Repo: ${config.repoUrl}`;
-        // Send initial part, possibly with logo
-        await formatAndSendMessage(sock, botJid, initialConnectMessage, { withLogo: true, addLog: addLog }); // withLogo can be true or false based on preference
+        await formatAndSendMessage(sock, botJid, initialConnectMessage, { withLogo: true, addLog: addLog });
 
         // Generate and send command list as a follow-up message
-        // This avoids making one message extremely long and potentially having formatting issues or image caption limits.
-        if (commandsMap.size > 0) {
+        if (commandsMap.size > 0) { // Check if commandsMap is populated (it should be, even if only 'general')
             const commandListMessage = generateCommandListString(commandsMap, config, startTime);
-            // Send command list without logo, as a plain text follow-up for clarity
             await formatAndSendMessage(sock, botJid, commandListMessage, { withLogo: false, addLog: addLog });
         } else {
-            await formatAndSendMessage(sock, botJid, "No commands currently loaded. Please check configuration.", { withLogo: false, addLog: addLog });
+            // This case should ideally not be hit if 'general' commands load
+            await formatAndSendMessage(sock, botJid, "Bot connected. No commands seem to be loaded, please check configuration.", { withLogo: false, addLog: addLog });
         }
-        addLog("[BAILEYS_CONNECT] Startup notifications sent to self.");
+        addLog("[BAILEYS_CONNECT] Full startup notifications sent to self.");
 
       } else { addLog("[BAILEYS_CONNECT] Could not determine bot JID for startup message.", 'WARNING');}
     }
