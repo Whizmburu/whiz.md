@@ -19,7 +19,7 @@ const config = {
     prefixes: ['!', '.', '#', '/'],
 
     // --- Links ---
-    repoUrl: "https://github.com/twoem/whizbotpro",
+    repoUrl: "https://github.com/Whizmburu/whiz.md",
     whatsappGroupUrl: "https://chat.whatsapp.com/JLmSbTfqf4I2Kh4SNJcWgM",
 
     // --- Media URLs ---

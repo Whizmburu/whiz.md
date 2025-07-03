@@ -18,6 +18,14 @@
   ],
   "author": "Whiz",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Whizmburu/whiz.md.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Whizmburu/whiz.md/issues"
+  },
+  "homepage": "https://github.com/Whizmburu/whiz.md#readme",
   "type": "commonjs",
   "engines": {
     "node": ">=18.0.0"
@@ -33,6 +41,6 @@
     "youtube-sr": "^4.3.10",
     "mathjs": "^12.4.1",
     "qrcode": "^1.5.3",
-    "sharp": "^0.33.4"
+    "sharp": "^0.32.6"
     }
 }

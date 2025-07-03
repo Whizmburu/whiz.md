@@ -112,7 +112,7 @@ function generateCommandListString(loadedCommandsMap, configRef, startTimeRef) {
     const lineRepeatCount = 35; // Consistent with menu command
 
     const topBorder = `╭─⊷ ${configRef.botName} v${configRef.botVersion} ⊶─╮`;
-    const bottomLine = `╰─⊷ Type ${configRef.prefixes[0]}menu for more details! ⊶─╯`;
+    const bottomLine = `╰─⊷ Type ${configRef.prefixes[0]}menu for descriptions & more! ⊶─╯`; // Updated bottom line
     const mainSectionSeparator = `├${'─'.repeat(lineRepeatCount)}┤`;
     const categorySeparator = (title) => `├─⊷ ${title.toUpperCase()} ⊶─┤`;
 
@@ -146,7 +146,7 @@ function generateCommandListString(loadedCommandsMap, configRef, startTimeRef) {
             listText += `${categorySeparator(category)}\n`;
             commandsByCategory[category].forEach(cmdDef => {
                 const argsDisplay = cmdDef.usage && cmdDef.usage.includes('<') ? ` ${cmdDef.usage.substring(cmdDef.usage.indexOf('<'))}` : (cmdDef.args ? ` ${cmdDef.args}` : '');
-                listText += `│ ${configRef.prefixes[0]}${cmdDef.name}${argsDisplay}\n`; // Just cmd name for brevity
+                listText += `│ » ${cmdDef.name}${argsDisplay}\n`; // Use '»' and no prefix
             });
         }
     }

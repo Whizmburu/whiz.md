@@ -45,6 +45,9 @@ const menuCommand = {
         const categorySeparator = (title) => `├─⊷ ${title.toUpperCase()} ⊶─┤`;
 
         let menuText = `${topBorder}\n`;
+        // Use msg.pushName for user, fallback to JID part if pushName is not available
+        const userNameForMenu = msg.pushName || sender.split('@')[0];
+        menuText += `│ User    : ${userNameForMenu}\n`;
         menuText += `│ Owner   : ${config.ownerName}\n`;
         menuText += `│ Prefix  : ${config.prefixes.join(' ')}\n`;
         menuText += `│ Uptime  : ${uptime}\n`;
@@ -71,7 +74,7 @@ const menuCommand = {
                 menuText += `${categorySeparator(category)}\n`;
                 commandsByCategory[category].forEach(cmdDef => {
                     const argsDisplay = cmdDef.args ? ` ${cmdDef.args}` : '';
-                    menuText += `│ ${config.prefixes[0]}${cmdDef.cmd}${argsDisplay} - ${cmdDef.desc}\n`;
+                    menuText += `│ ${cmdDef.cmd}${argsDisplay} - ${cmdDef.desc}\n`; // Removed prefix from display
                 });
             }
         }
