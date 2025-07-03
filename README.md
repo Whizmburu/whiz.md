@@ -51,8 +51,8 @@
 
 1.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/twoem/whizbotpro.git
-    cd whizbotpro/whiz-md-bot
+    git clone https://github.com/Whizmburu/whiz.md
+    cd whiz.md
     ```
     *(Assuming `whiz-md-bot` is the correct sub-directory name)*
 
