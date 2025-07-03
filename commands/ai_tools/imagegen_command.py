@@ -72,24 +72,25 @@ async def handle_imagegen(message, args, client, bot_instance):
             http_response.raise_for_status() # Check for download errors
             image_bytes = BytesIO(http_response.content)
 
-            # Placeholder for sending the image
-            if hasattr(client, 'send_image_simulation') and image_bytes: # Check if image_bytes is not None
-                 await client.send_image_simulation(
-                     chat_id=getattr(message, 'sender', 'unknown_chat'), # Use sender as chat_id for mock
-                     image=image_bytes,
-                     caption=f"🖼️ AI Generated Image for: \"{prompt[:150]}{'...' if len(prompt)>150 else ''}\""
-                 )
-                 response_message = f"Image for \"{prompt[:30]}...\" sent!" # Confirmation after simulated send
-                 await reply_target(response_message)
-            elif image_bytes: # If no simulation method, just confirm success
-                response_message = f"🖼️ Image generated and downloaded for: \"{prompt}\". (Ready to be sent)"
+            # Sending the image using the client's method
+            if image_bytes:
+                final_caption = f"🖼️ AI Generated Image for: \"{prompt[:150]}{'...' if len(prompt)>150 else ''}\""
+                # Assuming message object has chat_id for where to send it
+                target_chat_id = getattr(message, 'chat_id', getattr(message, 'sender_id', 'unknown_chat'))
+                sent_message_info = await client.send_image(
+                    chat_id=target_chat_id,
+                    image_data_or_path=image_bytes, # PyBaileyClient mock expects image_data_or_path
+                    caption=final_caption
+                )
+                logger.info(f"AI Generated image sent, msg ID: {sent_message_info.get('id') if sent_message_info else 'N/A'}")
+                # No need for further reply_target if image is sent directly to chat.
+                # If a confirmation is desired:
+                # await reply_target(f"Image for \"{prompt[:30]}...\" has been generated and sent!")
+            else: # Should have been caught by check on image_url earlier, but as safeguard
+                response_message = "⚠️ Image data was not available to send."
                 await reply_target(response_message)
-            else:
-                response_message = "⚠️ Image generated but could not prepare it for sending."
-                await reply_target(response_message)
-
         else:
-            response_message = "⚠️ AI image service did not return image data."
+            response_message = "⚠️ AI image service did not return image data (no URL found in response)."
             await reply_target(response_message)
 
     except APIError as e:

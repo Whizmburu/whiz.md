@@ -66,15 +66,15 @@ async def handle_ytmp4(message, args, client, bot_instance):
             if downloaded_file_path and os.path.exists(downloaded_file_path):
                 file_size = os.path.getsize(downloaded_file_path)
                 print(f"Successfully downloaded video: {downloaded_file_path}, Size: {file_size} bytes")
+                final_caption = f"🎬 Here's your MP4: {video_title}"
+                target_chat_id = getattr(message, 'chat_id', getattr(message, 'sender_id', 'unknown_chat'))
 
-                if hasattr(message, 'reply') and hasattr(client, 'send_file_simulation'):
-                    await client.send_file_simulation(
-                        chat_id=message.sender,
-                        filepath=downloaded_file_path,
-                        caption=f"🎬 Here's your MP4: {video_title}"
-                    )
-                elif hasattr(message, 'reply'):
-                    await message.reply(f"✅ Successfully downloaded: {video_title}.mp4 (Path: {downloaded_file_path})")
+                sent_message_info = await client.send_video( # Using send_video
+                    chat_id=target_chat_id,
+                    video_data_or_path=downloaded_file_path, # Send path to the video file
+                    caption=final_caption
+                )
+                bot_instance.logger.info(f"ytmp4: Sent video file {os.path.basename(downloaded_file_path)}, msg ID: {sent_message_info.get('id') if sent_message_info else 'N/A'}")
 
                 # Optional: Clean up
                 # os.remove(downloaded_file_path)

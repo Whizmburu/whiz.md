@@ -25,19 +25,20 @@ async def handle_qr(message, args, client, bot_instance):
         img_byte_arr.seek(0) # Rewind to the start of the stream
 
         # Sending an image depends on the WhatsApp library.
-        # Placeholder for sending image:
-        # await client.send_image(
-        #     message.chat_id, # or message.reply_to_message_id for replying
-        #     image=img_byte_arr,
-        #     caption=f"QR Code for: \"{text_to_encode[:50]}{'...' if len(text_to_encode) > 50 else ''}\""
-        # )
+        # Sending the QR code image
+        final_caption = f"QR Code for: \"{text_to_encode[:50]}{'...' if len(text_to_encode) > 50 else ''}\""
+        target_chat_id = getattr(message, 'chat_id', getattr(message, 'sender_id', 'unknown_chat'))
 
-        print(f"Output for /qr: Generated QR code for \"{text_to_encode}\". (Image data not printed).")
-        print("Reminder: 'qrcode' and 'Pillow' (or 'qrcode[pil]') libraries are required.")
-        await message.reply(f"✅ QR Code generated for: `{text_to_encode}`. (Imagine an image is sent here!)")
+        sent_message_info = await client.send_image(
+            chat_id=target_chat_id,
+            image_data_or_path=img_byte_arr, # Pass BytesIO object
+            caption=final_caption
+        )
+        bot_instance.logger.info(f"QR Code image sent, msg ID: {sent_message_info.get('id') if sent_message_info else 'N/A'}")
+        # No need for message.reply if image is sent.
 
     except Exception as e:
-        # bot_instance.logger.error(f"QR generation error: {e}", exc_info=True)
+        bot_instance.logger.error(f"QR generation error: {e}", exc_info=True) # Use actual logger
         print(f"Error generating QR: {e}")
         await message.reply(f"⚠️ Sorry, I couldn't generate a QR code for that. Error: {e}")
 

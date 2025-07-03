@@ -73,15 +73,14 @@ async def handle_twitter(message, args, client, bot_instance):
                 file_size = os.path.getsize(downloaded_file_path)
                 final_caption = f"🐦 X/Twitter video by @{uploader}:\n{tweet_text[:100]}"
                 print(f"Successfully downloaded Twitter video: {downloaded_file_path}, Size: {file_size} bytes")
+                target_chat_id = getattr(message, 'chat_id', getattr(message, 'sender_id', 'unknown_chat'))
 
-                if hasattr(message, 'reply') and hasattr(client, 'send_file_simulation'):
-                    await client.send_file_simulation(
-                        chat_id=message.sender,
-                        filepath=downloaded_file_path,
-                        caption=final_caption
-                    )
-                elif hasattr(message, 'reply'):
-                    await message.reply(f"✅ Successfully downloaded: {os.path.basename(downloaded_file_path)}")
+                sent_message_info = await client.send_video(
+                    chat_id=target_chat_id,
+                    video_data_or_path=downloaded_file_path,
+                    caption=final_caption
+                )
+                bot_instance.logger.info(f"twitter: Sent video file {os.path.basename(downloaded_file_path)}, msg ID: {sent_message_info.get('id') if sent_message_info else 'N/A'}")
 
                 # os.remove(downloaded_file_path) # Optional cleanup
             else:

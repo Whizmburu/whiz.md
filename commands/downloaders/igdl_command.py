@@ -92,21 +92,41 @@ async def handle_igdl(message, args, client, bot_instance):
             file_size = os.path.getsize(file_path)
             print(f"Successfully downloaded Instagram media: {file_path}, Size: {file_size} bytes")
             caption = f"📸 IG: {post.caption[:50]}..." if post.caption else f"📸 Instagram content from {post.owner_username}"
+            target_chat_id = getattr(message, 'chat_id', getattr(message, 'sender_id', 'unknown_chat'))
 
-            if hasattr(message, 'reply') and hasattr(client, 'send_file_simulation'):
-                await client.send_file_simulation(
-                    chat_id=message.sender,
-                    filepath=file_path,
+            if file_path.lower().endswith((".jpg", ".jpeg", ".png")):
+                sent_info = await client.send_image(
+                    chat_id=target_chat_id,
+                    image_data_or_path=file_path,
                     caption=caption
                 )
-            elif hasattr(message, 'reply'):
-                await message.reply(f"✅ Successfully downloaded: {os.path.basename(file_path)} (Path: {file_path})")
+                bot_instance.logger.info(f"igdl: Sent image {os.path.basename(file_path)}, msg ID: {sent_info.get('id') if sent_info else 'N/A'}")
+            elif file_path.lower().endswith(".mp4"):
+                sent_info = await client.send_video(
+                    chat_id=target_chat_id,
+                    video_data_or_path=file_path,
+                    caption=caption
+                )
+                bot_instance.logger.info(f"igdl: Sent video {os.path.basename(file_path)}, msg ID: {sent_info.get('id') if sent_info else 'N/A'}")
+            else:
+                bot_instance.logger.warning(f"igdl: Unknown file type for {file_path}, attempting to send as generic file.")
+                sent_info = await client.send_file(
+                    chat_id=target_chat_id,
+                    file_data_or_path=file_path,
+                    caption=caption,
+                    filename=os.path.basename(file_path)
+                )
+                bot_instance.logger.info(f"igdl: Sent generic file {os.path.basename(file_path)}, msg ID: {sent_info.get('id') if sent_info else 'N/A'}")
 
             # Optional: Clean up
             # os.remove(file_path)
+            await asyncio.sleep(0.5) # Small delay between sending multiple files from a carousel
 
         if len(downloaded_files) > 1:
-             if hasattr(message, 'reply'): await message.reply(f"Downloaded {len(downloaded_files)} items from the post (e.g., carousel).")
+             await reply_target(f"✅ Sent {len(downloaded_files)} items from the Instagram post.")
+        elif downloaded_files: # Only one file
+            pass # The file itself being sent is the notification
+             # await reply_target(f"✅ Sent 1 item from the Instagram post.")
 
 
     except instaloader.exceptions.ConnectionException as e:

@@ -15,3 +15,4 @@ pyshorteners
 pytz
 parsedatetime
 openai
+pybailey # Hypothetical Baileys wrapper

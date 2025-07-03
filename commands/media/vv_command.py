@@ -63,23 +63,23 @@ async def handle_vv(message, args, client, bot_instance):
         # Step 5: Re-send as a normal message
         caption = f"🔓 View-once {media_type} revealed by {bot_instance.bot_name}!"
 
+        target_chat_id = getattr(message, 'chat_id', getattr(message, 'sender_id', 'unknown_chat')) # Get chat_id from message object
         if media_type == "image":
-            # await client.send_image(message.chat_id, image=media_bytes_io, caption=caption)
-            if hasattr(client, 'send_image_simulation'):
-                await client.send_image_simulation(getattr(message, 'chat_id', message.sender), image=media_bytes_io, caption=caption)
-                logger.info(f"Successfully re-sent view-once image for {message.sender} in chat {getattr(message, 'chat_id', message.sender)}")
-            else:
-                await reply_target(f"Simulated: Sent view-once image. Caption: {caption}")
+            sent_info = await client.send_image(
+                chat_id=target_chat_id,
+                image_data_or_path=media_bytes_io,
+                caption=caption
+            )
+            logger.info(f"Successfully re-sent view-once image for {message.sender_id if hasattr(message, 'sender_id') else message.sender} in chat {target_chat_id}. Msg ID: {sent_info.get('id') if sent_info else 'N/A'}")
         elif media_type == "video":
-            # await client.send_video(message.chat_id, video=media_bytes_io, caption=caption)
-            if hasattr(client, 'send_file_simulation'): # Using send_file_simulation for video
-                await client.send_file_simulation(getattr(message, 'chat_id', message.sender), filepath=media_bytes_io, caption=caption) # Assuming filepath can be BytesIO for mock
-                logger.info(f"Successfully re-sent view-once video for {message.sender} in chat {getattr(message, 'chat_id', message.sender)}")
-            else:
-                await reply_target(f"Simulated: Sent view-once video. Caption: {caption}")
+            sent_info = await client.send_video(
+                chat_id=target_chat_id,
+                video_data_or_path=media_bytes_io,
+                caption=caption
+            )
+            logger.info(f"Successfully re-sent view-once video for {message.sender_id if hasattr(message, 'sender_id') else message.sender} in chat {target_chat_id}. Msg ID: {sent_info.get('id') if sent_info else 'N/A'}")
 
-        # Optionally, confirm to the user who used /vv if the re-upload is in the same chat.
-        # If the bot sends to the chat, the user will see it. A direct reply might be redundant.
+        # No explicit reply needed as the media is re-sent to the chat.
         # await reply_target("✅ View-once media re-posted.")
 
     except Exception as e:

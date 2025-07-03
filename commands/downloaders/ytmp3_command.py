@@ -115,15 +115,20 @@ async def handle_ytmp3(message, args, client, bot_instance):
                 file_size = os.path.getsize(downloaded_file_path)
                 print(f"Successfully downloaded and converted to MP3: {downloaded_file_path}, Size: {file_size} bytes")
                 # await client.send_file(message.chat_id, downloaded_file_path, caption=f"🎶 {video_title}")
-                # Placeholder for sending file:
-                if hasattr(message, 'reply') and hasattr(client, 'send_file_simulation'):
-                    await client.send_file_simulation(
-                        chat_id=message.sender, # Assuming message.sender can be a chat_id
-                        filepath=downloaded_file_path,
-                        caption=f"🎶 Here's your MP3: {video_title}"
-                    )
-                elif hasattr(message, 'reply'):
-                    await message.reply(f"✅ Successfully downloaded: {video_title}.mp3 (Path: {downloaded_file_path})")
+                # Send the downloaded MP3 file
+                final_caption = f"🎶 Here's your MP3: {video_title}"
+                target_chat_id = getattr(message, 'chat_id', getattr(message, 'sender_id', 'unknown_chat'))
+                # Determine filename to send
+                actual_filename = os.path.basename(downloaded_file_path)
+
+                sent_message_info = await client.send_file(
+                    chat_id=target_chat_id,
+                    file_data_or_path=downloaded_file_path, # Send the path to the file
+                    caption=final_caption,
+                    filename=actual_filename # Provide the filename
+                )
+                bot_instance.logger.info(f"ytmp3: Sent audio file {actual_filename}, msg ID: {sent_message_info.get('id') if sent_message_info else 'N/A'}")
+                # No need for further reply if file sent to chat
 
                 # Optional: Clean up the downloaded file after sending
                 # os.remove(downloaded_file_path)

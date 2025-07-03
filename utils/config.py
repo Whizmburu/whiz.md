@@ -51,6 +51,10 @@ class Config:
         else: # Default if not set or empty
             self.status_reaction_emojis = ["👍", "🔥", "❤️", "😂", "😮", "🎉", "💯"] # Default list from spec/common usage
 
+        # WhatsApp Client Library specific settings
+        self.whatsapp_client_service_url = os.getenv("WHATSAPP_CLIENT_SERVICE_URL", "ws://localhost:8080")
+        self.whatsapp_session_path = os.getenv("WHATSAPP_SESSION_PATH", "./whatsapp_session_data")
+
 
     def validate_session_id(self):
         """

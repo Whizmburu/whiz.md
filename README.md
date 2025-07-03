@@ -1,140 +1,119 @@
-# 𝐖𝐇𝐈𝐙-𝐌𝐃 Bot (Powered by Baileys)
+# WHIZ-MD Bot - Python Edition
 
-𝐖𝐇𝐈𝐙-𝐌𝐃 is a feature-rich WhatsApp bot built with Node.js and **`@whiskeysockets/baileys`**. It uses a direct connection to WhatsApp, making it light and stable. Customize its behavior, prefixes, and commands via a `config.js` file. The bot offers automation, utilities, media tools, group management, owner commands, and a web UI for live logs.
+WHIZ-MD is a feature-rich WhatsApp bot built with Python, designed to provide a wide array of functionalities including utilities, media tools, AI interactions, group management, and more, as specified in the initial WHIZ-MD Bot System Specification.
+
+This Python version aims to implement the features and user experience detailed for the WHIZ-MD system.
 
 ## Features Overview
 
-**General Commands:**
-*   `<prefix>ping`: Checks responsiveness and uptime.
-*   `<prefix>menu`: Displays the detailed, structured command menu.
-*   `<prefix>contact`: Provides owner "Whiz" contact card & group info.
-*   `<prefix>source`: Links to the bot's GitHub repository.
-*   `<prefix>jid`: Shows JID of the current chat and quoted user (if any).
-*   `<prefix>uptime`: Displays current bot uptime.
+The bot includes a comprehensive set of commands (currently 79 implemented + menu) across various categories:
+*   **Owner Commands:** Bot control and information (`/ping`, `/uptime`, `/stats`, `/about`, `/help`, `/prefix`, `/setprefix`, `/report`, `/invite`, `/support`).
+*   **Utility Commands:** Everyday tools (`/calc`, `/qr`, `/translate`, `/shorturl`, `/weather`, `/time`, `/reminder`, `/timer`, `/dictionary`, `/quote`).
+*   **AI / Tools:** Powered by OpenAI (`/ask`, `/imagegen` with DALL-E, `/summarize`, `/codegen`, `/chat` with session history).
+*   **Group Admin Commands:** Group management tools (`/ban`, `/kick`, etc. - require admin privileges and actual WhatsApp library integration for full effect).
+*   **Media Commands:** Sticker creation, image manipulation, view-once handling (`/sticker`, `/toimg`, `/vv`, etc. - many are placeholders pending media library choices and WhatsApp lib integration).
+*   **Fun Commands:** Entertainment and games (`/joke`, `/meme`, `/8ball`, etc. - mostly placeholders).
+*   **Internet Commands:** Information retrieval (`/news`, `/wiki`, `/movie`, etc. - mostly placeholders).
+*   **Downloaders:** Media downloaders for various platforms (`/ytmp3`, `/ytmp4`, `/igdl`, `/tiktok`, `/fb`, `/twitter`, `/mediafire`. `/apk` is a safety-conscious placeholder).
+*   **Text & Fonts:** Text manipulation tools (`/fancy`, `/ascii`, `/emoji`, `/reverse`, `/zalgo`, `/cursive`, `/tinytext`).
+*   **Dev Tools:** Developer utilities (`/base64`, `/jsonfmt`, `/whois`, `/dns`, `/headers`).
 
-**Media & Utility Commands:**
-*   `<prefix>sticker` (reply to image/video or send with caption): Creates a sticker.
-    *   _Pack: "𝐖𝐇𝐈𝐙-𝐌𝐃 Stickers", Author: "Whiz"_
-*   `<prefix>toimg` (reply to sticker): Converts sticker to image/video.
-*   `<prefix>vv` (reply to view-once): Saves and resends view-once media to you.
-*   `save` (reply to a message, e.g., forwarded status): Saves content to bot's & owner's chat.
-*   `<prefix>ytsearch <query>`: Searches YouTube, returns top 3 video results.
-*   `<prefix>calc <expression>`: Evaluates mathematical expressions.
-
-**Group Admin Commands (Bot must be an administrator):**
-*   `<prefix>promote @user`: Promotes mentioned user(s) to admin.
-*   `<prefix>demote @user`: Demotes mentioned admin(s).
-*   `<prefix>kick @user`: Removes mentioned user(s).
-*   `<prefix>grouplink`: Gets the group's invite link.
-*   `<prefix>groupinfo`: Displays current group details.
-
-**Owner-Only Commands (Sender must match `OWNER_JID` in `.env`):**
-*   `<prefix>delete` (reply to bot's message): Deletes the bot's message.
-*   `<prefix>broadcast <message>`: Sends message to all groups the bot is in.
-*   `<prefix>restart`: Restarts the bot (requires process manager like PM2).
-
-**Automatic Features:**
-*   **Auto Like Status**: Reacts '🔥' to new status updates.
-*   **Startup Notification**: Sends a message to self on connection (uptime, links).
-*   **Web Log Viewer**: Live logs at `http://localhost:3001/bot-log` (default port).
-
-*(Auto View Statuses feature is currently under review for Baileys).*
+For a detailed command list and descriptions, please refer to the original system specification or use the `/menu` and `/help` commands once the bot is running with a compatible WhatsApp client.
 
 ## Prerequisites
 
-*   Node.js (v16 or higher recommended)
-*   NPM (usually comes with Node.js)
-*   A working WhatsApp account.
-*   Git (for `npm install` if any dependency requires it, and for cloning).
+*   Python (3.8 or higher recommended).
+*   Pip (Python package installer).
+*   Git (for cloning the repository).
+*   An active WhatsApp account.
+*   **(For full operation with a real WhatsApp client)**: A chosen Python WhatsApp library and its dependencies (which might include Node.js, a web browser like Chromium, etc., depending on the library). See "WhatsApp Client Integration" below.
 
-## Setup and Running
+## Setup and Running (Current Development State)
 
 1.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/twoem/whizbotpro.git
-    cd whizbotpro/whiz-md-bot
+    # Replace with the actual repository URL when available
+    git clone https://github.com/your-username/whiz-md-bot-python.git
+    cd whiz-md-bot-python
     ```
-    *(Assuming `whiz-md-bot` is the correct sub-directory name)*
 
-2.  **Install Dependencies:**
-    In the `whiz-md-bot/` directory, run:
+2.  **Create a Virtual Environment (Recommended):**
     ```bash
-    npm install
+    python -m venv venv
+    source venv/bin/activate  # On Windows: venv\Scripts\activate
     ```
-    This installs `@whiskeysockets/baileys`, `express`, `ejs`, `dotenv`, `qrcode-terminal`, `youtube-sr`, `mathjs`, etc.
 
-3.  **Configure the Bot (`config.js`):**
-    *   Open `config.js` in the `whiz-md-bot/` directory.
-    *   Customize settings like `botName`, `ownerName`, `prefixes`, `footerText`.
-    *   You can also review and modify the `commandsList` which populates the `!menu`.
-    *   **Note:** The `ownerJidEnvKey` and `statusSavesJidEnvKey` in `config.js` define the *names* of the environment variables the bot will look for (e.g., "OWNER_JID"). You'll set the actual JID values in the `.env` file.
+3.  **Install Dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+    This will install all Python libraries listed in `requirements.txt`, including `python-dotenv`, `openai`, `requests`, `yt-dlp`, various utility libraries, and a placeholder for a WhatsApp client (`pybailey` in the current mock).
 
-4.  **Set Environment Variables (`.env` file):**
+4.  **Configure Environment Variables (`.env` file):**
     *   Copy `.env.example` to `.env`:
         ```bash
         cp .env.example .env
         ```
-    *   Edit `.env` and provide your actual JIDs:
-        ```env
-        # Optional: Port for the bot's web log viewer (default: 3001)
-        # BOT_WEB_PORT=3001
+    *   Edit the `.env` file and fill in your actual values. Key variables include:
+        *   `SESSION_ID`: Your WhatsApp session ID (must start with `WHIZ_`). Get from [https://whizmdsessions.onrender.com](https://whizmdsessions.onrender.com).
+        *   `BOT_NAME`: Your bot's name.
+        *   `OWNER_NAME`: Your name (as the bot owner).
+        *   `OWNER_JID`: Your WhatsApp JID (e.g., `yournumber@s.whatsapp.net`), used for owner-only commands like `/setprefix`.
+        *   `OPENAI_API_KEY`: Your OpenAI API key for AI features (`/ask`, `/imagegen`, etc.).
+        *   `OPENWEATHERMAP_API_KEY`: For the `/weather` command.
+        *   `BOT_WHATSAPP_NUMBER`: The bot's WhatsApp number (for the `/invite` command).
+        *   Other settings like `PREFIXES`, `LOG_LEVEL`, `SUPPORT_GROUP_LINK`, etc.
 
-        # JID of the owner where saved statuses should also be forwarded (e.g., 2547xxxxxxxx@s.whatsapp.net)
-        # Key name is defined in config.js (statusSavesJidEnvKey)
-        OWNER_JID_FOR_STATUS_SAVES="your_number@s.whatsapp.net"
-
-        # Bot Owner's JID (e.g., 2547xxxxxxxx@s.whatsapp.net)
-        # Used for owner-only commands. Key name is defined in config.js (ownerJidEnvKey)
-        OWNER_JID="your_number@s.whatsapp.net"
-        ```
-    *   **Important:** Add `.env` to your `.gitignore` file.
-
-5.  **Run the Bot & Link Your Account (First Time):**
+5.  **Running the Bot (with Mocked WhatsApp Client):**
+    The current `whiz_md_bot.py` includes a **mocked** WhatsApp client (`PyBaileyClient`). This allows testing the bot's command handling and core logic without connecting to WhatsApp.
     ```bash
-    npm start
+    python whiz_md_bot.py
     ```
-    or `node index.js`.
-    *   **On the first run (or if `baileys_auth_info/` is empty):** A QR code will appear in your terminal.
-    *   Scan this QR code using WhatsApp on your phone: `Settings > Linked Devices > Link a Device`.
-    *   The bot will connect and save its session in `baileys_auth_info/`.
+    The script will initialize the bot, and the mock client will simulate receiving a few test messages (like `/ping`, `/menu`) which you'll see processed in the console logs.
 
-6.  **Subsequent Runs:**
-    *   Run `npm start`. The bot will use saved credentials in `baileys_auth_info/` to reconnect.
+## WhatsApp Client Integration (Important!)
 
-7.  **Accessing Web Log Viewer:**
-    *   Default: `http://localhost:3001/bot-log` (or your configured `BOT_WEB_PORT`).
+The bot is currently developed with a **mocked WhatsApp client** (`PyBaileyClient` defined within `whiz_md_bot.py`). This is for development and testing of the bot's features *independent of a live WhatsApp connection*.
 
-## Command Usage
-*   Commands can be triggered using any of the prefixes defined in `config.js` (default: `!`, `.`, `#`, `/`). For example, `!menu` or `.ping`.
-*   For commands requiring arguments (e.g., `<query>`, `<expression>`, `@user`), provide them after the command. Example: `!ytsearch best songs` or `!kick @1234567890`.
+**To make this bot actually connect to WhatsApp and interact, you will need to:**
 
-## How it Works
-*   **Baileys Library**: Uses `@whiskeysockets/baileys` for direct WebSocket communication.
-*   **Configuration**: Most settings are managed via `config.js`. Sensitive JIDs via `.env`.
-*   **Authentication**: Console QR for initial link; session credentials stored in `baileys_auth_info/`.
-*   **Multi-Prefix**: Parses commands based on the `prefixes` array in `config.js`.
-*   **Dynamic Menu**: The `!menu` command content is generated from `config.commandsList`.
-*   **Web Log Viewer**: Integrated Express.js server.
+1.  **Choose a Python WhatsApp Library:**
+    *   Research and select a suitable Python library that wraps a WhatsApp Web API (like Baileys or whatsapp-web.js). Examples of such wrappers vary in stability and maintenance. The user previously indicated a preference for a Baileys-based wrapper.
+    *   **Note:** These libraries often have their own complex dependencies (e.g., Node.js, specific browser versions if they use Puppeteer/Selenium).
 
-## File Structure (`whiz-md-bot/`)
-*   `index.js`: Main bot logic.
-*   `config.js`: Bot configurations (name, owner, prefixes, command list, etc.).
-*   `package.json`: Project metadata and dependencies.
+2.  **Integrate the Chosen Library:**
+    *   Install the library and its dependencies.
+    *   **Replace the mock `PyBaileyClient` and `PyBaileyMessage` classes in `whiz_md_bot.py` with the actual client and message objects from your chosen library.**
+    *   Adapt the client initialization in `WhizMdBot.__init__()`.
+    *   Adapt the event handling:
+        *   `_on_ready_wrapper`: Connect to the library's "ready/connected" event.
+        *   `_on_message_wrapper`: Connect to the library's "new message" event. You will need to adapt the incoming message object from the library to a structure that `handle_message` and your command handlers can use (or modify handlers to use the library's message object directly). This includes how `message.text`, `message.sender`, `message.chat_id`, `message.reply()`, etc., are accessed and used.
+    *   Adapt sending methods: Update how text, images, videos, and files are sent in command handlers to use the methods provided by your chosen library (e.g., `client.send_text()`, `client.send_image()`).
+
+3.  **Session Management:**
+    *   Handle WhatsApp session setup for the chosen library (usually involves scanning a QR code from your phone). The library will typically save session data to a specified path (e.g., configured via `WHATSAPP_SESSION_PATH` in `.env`).
+
+This integration is a significant step and requires careful attention to the chosen library's documentation and API.
+
+## Code Structure
+
+*   `whiz_md_bot.py`: Main bot script, includes `WhizMdBot` class, command dispatcher, and (currently) the mock WhatsApp client.
+*   `utils/`: Utility modules:
+    *   `config.py`: Loads configuration from `.env`.
+    *   `logger.py`: Sets up logging.
+    *   `message_templates.py`: Generates standardized bot messages (menu, ping, connect).
+*   `commands/`: Contains subdirectories for different command categories (e.g., `owner`, `utility`, `ai_tools`). Each command is in its own file.
+    *   `commands/category/__init__.py`: Imports all handlers from that category.
+*   `features/`: For non-command-based features (e.g., `status_handler.py` placeholder).
+*   `requirements.txt`: Python dependencies.
 *   `.env.example`: Template for environment variables.
-*   `baileys_auth_info/`: For Baileys session credentials. **Add to `.gitignore`**.
-*   `bot_views/log.ejs`: Template for the web log page.
-*   `bot_public/css/bot_style.css`: Stylesheet for the web log page.
-*   `logs.txt`: Plain text file where console logs are also appended.
-*   `README.md`: This file.
+*   `AGENTS.md`: Instructions for AI agents working on this codebase.
 
-## Important Links
-*   **Repository:** [https://github.com/twoem/whizbotpro](https://github.com/twoem/whizbotpro)
-*   **WhatsApp Group:** [https://chat.whatsapp.com/JLmSbTfqf4I2Kh4SNJcWgM](https://chat.whatsapp.com/JLmSbTfqf4I2Kh4SNJcWgM)
+## Contributing
 
-## Important Notes
-*   **WhatsApp ToS**: Use responsibly.
-*   **Session Files**: Keep `baileys_auth_info/` secure.
-*   **Admin/Owner Commands**: Ensure bot has admin rights for group actions and `OWNER_JID` is set for owner commands.
-*   **Console Output**: Baileys can be verbose. Use the web log viewer for structured logs.
+If you are an AI agent working on this code, please refer to `AGENTS.md` for specific guidelines. For human contributors, standard GitHub practices (fork, branch, PR) apply.
 
-Maintained by **Whiz**. Contact: `+254754783683`.
+---
+
+Maintained by **WHIZ** (as per original specification).
+This Python version developed by Jules (AI Agent).
