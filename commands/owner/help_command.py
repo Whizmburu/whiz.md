@@ -13,16 +13,30 @@ async def handle_help(message, args, client, bot_instance):
     # 2. Provide help for a specific command if args are given (e.g., /help ping).
     # 3. Be dynamically generated from registered commands.
 
+    command_categories = [
+        "Owner ⚙️", "Utility 🛠️", "AI / Tools 🧐", "Group Admin 👮",
+        "Media 🖼", "Fun 🎮", "Internet 🌐", "Downloaders 📀",
+        "Text & Fonts 🎨", "Dev Tools 🚀"
+    ]
+
     response_message = (
-        f"🆘 **{bot_instance.bot_name} Help** 🆘\n\n"
-        f"Hello! I'm {bot_instance.bot_name}, your friendly WhatsApp assistant.\n\n"
-        f"To see the main menu with all available categories and commands, please use:\n"
-        f"➡️  `/menu`\n\n"
-        f"If you need help with a specific command in the future, you might be able to use `/help <command_name>`.\n\n"
-        f"For bug reports or support, please use the `/report` or `/support` command."
+        f"🆘 **{bot_instance.bot_name} Help Center** 🆘\n\n"
+        f"Hello! I'm {bot_instance.bot_name}. Here's how I can assist you:\n\n"
+        f"➡️  Use `/menu` to see the full interactive menu.\n\n"
+        f"I have commands in the following categories:\n"
+    )
+    for category in command_categories:
+        response_message += f"  - {category}\n"
+
+    response_message += (
+        f"\n"
+        f"You can explore these categories further via the `/menu` command. "
+        f"In the future, you might be able to use `/help <command_name>` for specific command details.\n\n"
+        f"For bug reports, use `/report <your_message>`.\n"
+        f"For support, use `/support` to get our group link."
     )
 
-    # await message.reply(response_message) # Placeholder
+    # await message.reply(response_message) # Placeholder for actual send
     print(f"Output for /help:\n{response_message}")
 
 if __name__ == '__main__':

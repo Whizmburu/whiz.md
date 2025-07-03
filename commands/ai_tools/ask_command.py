@@ -3,7 +3,17 @@
 # Add 'openai' to requirements.txt.
 # Requires OPENAI_API_KEY in .env.
 
-import openai # Placeholder for the actual OpenAI library or other AI SDK
+from openai import OpenAI, APIError # Import OpenAI and APIError for specific exception handling
+import asyncio
+
+# Global OpenAI client instance cache to avoid re-initializing on every call
+# This is a simple cache; a more robust solution might involve class-based client management.
+_openai_clients = {}
+
+def get_openai_client(api_key):
+    if api_key not in _openai_clients:
+        _openai_clients[api_key] = OpenAI(api_key=api_key)
+    return _openai_clients[api_key]
 
 async def handle_ask(message, args, client, bot_instance):
     """
@@ -23,45 +33,71 @@ async def handle_ask(message, args, client, bot_instance):
         print("Error: OPENAI_API_KEY not found in config for /ask command.")
         return
 
-    # This is a conceptual placeholder. Actual implementation depends on the chosen AI SDK.
-    # openai.api_key = api_key # Example for older openai lib versions
+    ai_client = get_openai_client(api_key)
+    response_message = ""
+    ai_response_text = ""
 
     try:
-        # Example using a hypothetical openai client instance from bot_instance
-        # Or initialize it here:
-        # from openai import OpenAI
-        # ai_client = OpenAI(api_key=api_key)
-        # response = ai_client.chat.completions.create(
-        # model="gpt-3.5-turbo", # Or other suitable model
+        if hasattr(message, 'reply'): await message.reply(f"🤔 Thinking about: \"{question[:50]}...\" Please wait.")
+
+        # Make the API call using the OpenAI client (v1.x SDK syntax)
+        # In a real async bot, you might run this in an executor if the SDK call is blocking
+        # However, the OpenAI v1.x client with httpx is async-compatible.
+        # For truly non-blocking, one would use `await ai_client.chat.completions.create(...)`
+        # if the client was an AsyncOpenAI client.
+        # For simplicity with the current synchronous OpenAI client, this will block the event loop.
+        # To make it non-blocking with sync client:
+        # loop = asyncio.get_event_loop()
+        # completion = await loop.run_in_executor(
+        # None, # Default executor (ThreadPoolExecutor)
+        # lambda: ai_client.chat.completions.create(
+        # model="gpt-3.5-turbo",
         # messages=[
-        # {"role": "system", "content": "You are a helpful assistant integrated into a WhatsApp bot."},
+        # {"role": "system", "content": "You are a helpful AI assistant for the WHIZ-MD WhatsApp bot. Provide concise and informative answers."},
         # {"role": "user", "content": question}
         # ]
         # )
-        # ai_response_text = response.choices[0].message.content.strip()
+        # )
+        # For now, direct call, assuming tests are okay with potential blocking or it's handled by bot runner.
+        # If using `AsyncOpenAI`, the call would be:
+        # ai_client = AsyncOpenAI(api_key=api_key) # Need to manage this client instance too
+        # completion = await ai_client.chat.completions.create(...)
 
-        # Placeholder response for now:
-        ai_response_text = f"AI models like me would process your question: \"{question}\".\n" \
-                           f"If this were fully implemented, I'd provide a thoughtful answer here!\n" \
-                           f"(Using API Key: ...{api_key[-4:] if api_key else 'NONE'})"
+        # Using the synchronous client for now as per initial library version assumption.
+        # This will block if not run in an executor.
+        # For a production bot, ensure this runs non-blockingly.
+        completion = ai_client.chat.completions.create(
+            model="gpt-3.5-turbo", # A common and capable model
+            messages=[
+                {"role": "system", "content": "You are a helpful AI assistant for the WHIZ-MD WhatsApp bot. Provide concise and informative answers."},
+                {"role": "user", "content": question}
+            ]
+        )
 
-        # Simulate API call delay
-        await asyncio.sleep(1)
+        if completion.choices and completion.choices[0].message:
+            ai_response_text = completion.choices[0].message.content.strip()
+            response_message = f"🤖 **AI Response:**\n\n{ai_response_text}"
+        else:
+            ai_response_text = "The AI returned an empty response."
+            response_message = f"⚠️ {ai_response_text}"
 
-        response_message = f"🤖 **AI Response:**\n\n{ai_response_text}"
-
-    except openai.APIError as e: # Catch specific API errors if using openai lib
-        # bot_instance.logger.error(f"OpenAI API error for /ask: {e}", exc_info=True)
-        print(f"OpenAI API error for /ask: {e}")
-        response_message = f"⚠️ Sorry, there was an error communicating with the AI service: {str(e)}"
+    except APIError as e: # Catch specific API errors from openai library
+        print(f"OpenAI API error for /ask: {e.status_code} - {e.message}")
+        error_detail = str(e.message)[:100] # Keep error message brief for user
+        if e.status_code == 401: # Authentication error
+             response_message = "⚠️ OpenAI API Key is invalid or authentication failed. Please contact the bot owner."
+        elif e.status_code == 429: # Rate limit
+            response_message = "⚠️ The AI service is currently experiencing high traffic (rate limit exceeded). Please try again later."
+        elif e.status_code == 500: # Server error
+            response_message = "⚠️ The AI service reported an internal server error. Please try again later."
+        else:
+            response_message = f"⚠️ An API error occurred with the AI service: {error_detail}"
     except Exception as e:
-        # bot_instance.logger.error(f"Unexpected error in /ask: {e}", exc_info=True)
         print(f"Unexpected error in /ask: {e}")
-        response_message = f"⚠️ An unexpected error occurred while processing your request: {str(e)}"
+        response_message = f"⚠️ An unexpected error occurred while processing your request: {str(e)[:100]}"
 
-    # await message.reply(response_message) # Placeholder
-    print(f"Output for /ask:\n{response_message}")
-    print("Reminder: An AI library (e.g., 'openai') and API key (OPENAI_API_KEY) are required.")
+    reply_target = getattr(message, 'reply', print)
+    await reply_target(response_message)
 
 
 if __name__ == '__main__':

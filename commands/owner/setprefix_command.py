@@ -12,11 +12,21 @@ async def handle_setprefix(message, args, client, bot_instance):
     Or: /setprefix reset (to default)
     """
     # Permission Check (Example - actual implementation depends on user identification)
-    # if message.sender_id != bot_instance.config.owner_id: # Assuming owner_id is configured
-    #     await message.reply("⚠️ This command is for the bot owner only.")
-    #     return
-    print(f"User '{message.sender}' attempting to use /setprefix. (Permission check placeholder)")
+    # Permission Check
+    # Ensure message.sender is available and comparable to config.owner_jid
+    # The format of message.sender will depend on the WhatsApp library used.
+    # For simulation, MockMessage provides message.sender.
+    if not bot_instance.config.owner_jid:
+        await message.reply("⚠️ Bot owner JID/number is not configured. This command cannot be secured.")
+        bot_instance.logger.warning("/setprefix called but OWNER_JID not set in config.")
+        return
 
+    if not hasattr(message, 'sender') or message.sender != bot_instance.config.owner_jid:
+        await message.reply("⚠️ This command is restricted to the bot owner only.")
+        bot_instance.logger.warning(f"Unauthorized /setprefix attempt by '{message.sender if hasattr(message, 'sender') else 'UnknownSender'}'. Owner JID: {bot_instance.config.owner_jid}")
+        return
+
+    bot_instance.logger.info(f"Authorized user '{message.sender}' using /setprefix.")
 
     if not args:
         await message.reply("Usage: `/setprefix <newprefix1> [newprefix2 ...]` or `/setprefix reset`")

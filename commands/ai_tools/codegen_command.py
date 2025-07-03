@@ -3,7 +3,15 @@
 # Add 'openai' to requirements.txt.
 # Requires OPENAI_API_KEY in .env.
 
-import openai # Placeholder for actual SDK
+from openai import OpenAI, APIError
+import asyncio
+
+# Re-use client getter or define locally
+_openai_clients_code = {}
+def get_openai_client_code(api_key):
+    if api_key not in _openai_clients_code:
+        _openai_clients_code[api_key] = OpenAI(api_key=api_key)
+    return _openai_clients_code[api_key]
 
 async def handle_codegen(message, args, client, bot_instance):
     """
@@ -46,63 +54,69 @@ async def handle_codegen(message, args, client, bot_instance):
         print("Error: OPENAI_API_KEY not found in config for /codegen command.")
         return
 
-    # openai.api_key = api_key # Example for older openai lib
-    await message.reply(f"💻 Generating code for: \"{prompt_text[:100]}{'...' if len(prompt_text)>100 else ''}\" (Language hint: {language_specified})...")
+    ai_client = get_openai_client_code(api_key)
+    reply_target = getattr(message, 'reply', print)
+    response_message = ""
+    generated_code = ""
+
+    await reply_target(f"💻 Generating code for: \"{prompt_text[:100]}{'...' if len(prompt_text)>100 else ''}\" (Language hint: {language_specified}). Please wait...")
 
     try:
-        # Example using hypothetical OpenAI client
-        # from openai import OpenAI
-        # ai_client = OpenAI(api_key=api_key)
-        # full_prompt = f"Generate a code snippet in {language_specified if language_specified not in ['an unspecified language (AI will try to infer or use a common one)'] else 'a suitable language'} for the following task: {prompt_text}. Only provide the code block, no explanations before or after, unless the code itself contains comments."
-
-        # response = ai_client.chat.completions.create(
-        #     model="gpt-3.5-turbo", # Or a code-specialized model if available
-        #     messages=[
-        #         {"role": "system", "content": "You are an expert code generation assistant. You output only the raw code requested, preferably in a single code block. If language is not specified, choose the most appropriate one."},
-        #         {"role": "user", "content": full_prompt}
-        #     ],
-        #     temperature=0.2 # Lower temperature for more deterministic code
-        # )
-        # generated_code = response.choices[0].message.content.strip()
-
-        # Placeholder response:
-        await asyncio.sleep(2) # Simulate API call
-        generated_code = (
-            f"// Placeholder code for: {prompt_text}\n"
-            f"// Language: {language_specified}\n"
-            f"function placeholderFunction() {{\n"
-            f"  console.log(\"This is AI generated code (placeholder).\");\n"
-            f"  // API Key used: ...{api_key[-4:]}\n"
-            f"}}"
+        system_prompt = (
+            "You are an expert code generation assistant. You output only the raw code requested, "
+            "inside a single markdown code block. If a language is specified, use it. "
+            "If language is not specified, choose the most appropriate common language based on the request. "
+            "Do not include any explanations outside the code block itself (comments within the code are fine)."
         )
-        if language_specified == "python":
-             generated_code = (
-                f"# Placeholder code for: {prompt_text}\n"
-                f"# Language: {language_specified}\n"
-                f"def placeholder_function():\n"
-                f"    print(\"This is AI generated Python code (placeholder).\")\n"
-                f"    # API Key used: ...{api_key[-4:]}\n"
-            )
 
+        user_query_for_ai = ""
+        if language_specified and language_specified != "an unspecified language (AI will try to infer or use a common one)":
+            user_query_for_ai = f"Generate a code snippet in {language_specified} for the following task: {prompt_text}"
+        else:
+            user_query_for_ai = f"Generate a code snippet for the following task (choose a suitable language): {prompt_text}"
 
-        # Format as a code block for WhatsApp (triple backticks)
-        # The language hint in backticks might not render on all WhatsApp versions/clients
-        # but is good practice.
-        formatted_code_response = f"```{(language_specified if language_specified not in ['an unspecified language (AI will try to infer or use a common one)'] else '')}\n{generated_code}\n```"
-        response_message = f"✨ **Generated Code:** ✨\n{formatted_code_response}"
+        # Synchronous client call - consider executor for async.
+        completion = ai_client.chat.completions.create(
+            model="gpt-3.5-turbo", # Or a more code-specialized model like gpt-4 if available/needed
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_query_for_ai}
+            ],
+            temperature=0.2, # Lower temperature for more deterministic and usually correct code
+            max_tokens=1000    # Allow for reasonably sized code snippets
+        )
 
-    except openai.APIError as e:
-        # bot_instance.logger.error(f"OpenAI API error for /codegen: {e}", exc_info=True)
-        print(f"OpenAI API error for /codegen: {e}")
-        response_message = f"⚠️ Sorry, there was an error with the AI code generation service: {str(e)}"
+        if completion.choices and completion.choices[0].message:
+            generated_code = completion.choices[0].message.content.strip()
+
+            # The AI is asked to provide a markdown code block. We'll present it as is.
+            # If it doesn't provide markdown, we wrap it.
+            if generated_code.startswith("```") and generated_code.endswith("```"):
+                formatted_code_response = generated_code
+            else:
+                # Attempt to infer language from output if not specified for the ``` block
+                lang_hint_for_block = language_specified if language_specified not in ['an unspecified language (AI will try to infer or use a common one)'] else ''
+                formatted_code_response = f"```{lang_hint_for_block}\n{generated_code}\n```"
+
+            response_message = f"✨ **Generated Code:** ✨\n{formatted_code_response}"
+        else:
+            generated_code = "The AI returned an empty response for code generation."
+            response_message = f"⚠️ {generated_code}"
+
+    except APIError as e:
+        print(f"OpenAI API error for /codegen: {e.status_code} - {e.message}")
+        error_detail = str(e.message)[:100]
+        if e.status_code == 401:
+             response_message = "⚠️ OpenAI API Key is invalid. Contact owner."
+        elif e.status_code == 429:
+            response_message = "⚠️ AI service rate limit exceeded. Try again later."
+        else:
+            response_message = f"⚠️ An API error with the AI code generation service: {error_detail}"
     except Exception as e:
-        # bot_instance.logger.error(f"Unexpected error in /codegen: {e}", exc_info=True)
         print(f"Unexpected error in /codegen: {e}")
-        response_message = f"⚠️ An unexpected error occurred: {str(e)}"
+        response_message = f"⚠️ An unexpected error occurred: {str(e)[:100]}"
 
-    # await message.reply(response_message) # Placeholder
-    print(f"Output for /codegen:\n{response_message}")
-    print("Reminder: An AI library (e.g., 'openai') and API key are required.")
+    await reply_target(response_message)
 
 
 if __name__ == '__main__':

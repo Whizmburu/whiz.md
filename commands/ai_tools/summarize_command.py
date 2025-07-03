@@ -3,7 +3,16 @@
 # Add 'openai' or 'transformers' (and its model dependencies) to requirements.txt.
 # Requires OPENAI_API_KEY (or equivalent) in .env.
 
-import openai # Placeholder for actual SDK
+from openai import OpenAI, APIError
+import asyncio
+
+# Re-use client getter if it's made common, or define locally
+_openai_clients_sum = {}
+def get_openai_client_sum(api_key):
+    if api_key not in _openai_clients_sum:
+        _openai_clients_sum[api_key] = OpenAI(api_key=api_key)
+    return _openai_clients_sum[api_key]
+
 
 async def handle_summarize(message, args, client, bot_instance):
     """
@@ -49,44 +58,57 @@ async def handle_summarize(message, args, client, bot_instance):
         print("Error: OPENAI_API_KEY not found in config for /summarize command.")
         return
 
-    # openai.api_key = api_key # Example for older openai lib
-    await message.reply(f"📝 Summarizing your text... This might take a moment for long texts.")
+    ai_client = get_openai_client_sum(api_key)
+    reply_target = getattr(message, 'reply', print)
+    response_message = ""
+    summary = ""
+
+    await reply_target(f"📝 Summarizing your text... This might take a moment for long texts (processing first ~3500 chars).")
 
     try:
-        # Example using hypothetical OpenAI client for summarization
-        # from openai import OpenAI
-        # ai_client = OpenAI(api_key=api_key)
-        # prompt = f"Please summarize the following text concisely:\n\n{text_to_summarize[:3500]}" # Limit input length
+        # Limit input text to avoid excessive token usage.
+        # Max context for gpt-3.5-turbo is ~4096 tokens. Prompt + text + response.
+        # ~3500 chars is roughly 800-1000 tokens.
+        max_input_chars = 3500
+        truncated_text = text_to_summarize[:max_input_chars]
+        if len(text_to_summarize) > max_input_chars:
+            await reply_target(f"(Note: Input text was truncated to {max_input_chars} characters for summarization.)")
 
-        # response = ai_client.chat.completions.create(
-        #     model="gpt-3.5-turbo",
-        #     messages=[
-        #         {"role": "system", "content": "You are a text summarization assistant."},
-        #         {"role": "user", "content": prompt}
-        #     ],
-        #     max_tokens=150 # Limit summary length
-        # )
-        # summary = response.choices[0].message.content.strip()
+        prompt_for_summary = f"Please provide a concise summary of the following text:\n\n\"{truncated_text}\""
 
-        # Placeholder response:
-        await asyncio.sleep(1.5) # Simulate API call
-        summary = f"This is a placeholder summary for the text starting with: \"{text_to_summarize[:50]}...\".\n" \
-                  f"A real AI would provide a concise version here. (API Key: ...{api_key[-4:]})"
+        # Synchronous client call - consider executor for async.
+        completion = ai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are an expert text summarization assistant. Generate clear, concise summaries."},
+                {"role": "user", "content": prompt_for_summary}
+            ],
+            max_tokens=200  # Adjust max_tokens for desired summary length
+        )
 
-        response_message = f"📜 **Summary:**\n\n{summary}"
+        if completion.choices and completion.choices[0].message:
+            summary = completion.choices[0].message.content.strip()
+            response_message = f"📜 **Summary:**\n\n{summary}"
+        else:
+            summary = "The AI returned an empty summary."
+            response_message = f"⚠️ {summary}"
 
-    except openai.APIError as e:
-        # bot_instance.logger.error(f"OpenAI API error for /summarize: {e}", exc_info=True)
-        print(f"OpenAI API error for /summarize: {e}")
-        response_message = f"⚠️ Sorry, there was an error with the AI summarization service: {str(e)}"
+    except APIError as e:
+        print(f"OpenAI API error for /summarize: {e.status_code} - {e.message}")
+        error_detail = str(e.message)[:100]
+        if e.status_code == 401:
+             response_message = "⚠️ OpenAI API Key is invalid. Contact owner."
+        elif e.status_code == 429:
+            response_message = "⚠️ AI service rate limit exceeded. Try again later."
+        elif e.status_code == 500:
+            response_message = "⚠️ AI service internal server error. Try again later."
+        else:
+            response_message = f"⚠️ An API error with the AI summarization service: {error_detail}"
     except Exception as e:
-        # bot_instance.logger.error(f"Unexpected error in /summarize: {e}", exc_info=True)
         print(f"Unexpected error in /summarize: {e}")
-        response_message = f"⚠️ An unexpected error occurred: {str(e)}"
+        response_message = f"⚠️ An unexpected error occurred: {str(e)[:100]}"
 
-    # await message.reply(response_message) # Placeholder
-    print(f"Output for /summarize:\n{response_message}")
-    print("Reminder: An AI library (e.g., 'openai' or 'transformers') and API key are required.")
+    await reply_target(response_message)
 
 
 if __name__ == '__main__':

@@ -1,0 +1,17 @@
+python-dotenv
+yt-dlp
+instaloader
+pyfiglet
+emoji
+zalgo-py
+python-whois
+dnspython
+requests
+psutil
+asteval
+qrcode[pil]
+deep-translator
+pyshorteners
+pytz
+parsedatetime
+openai

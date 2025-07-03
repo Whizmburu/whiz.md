@@ -16,10 +16,11 @@ class MessageTemplates:
 ║ 📅 Timestamp  : {current_time}
 ║ 🚫 Errors      : None
 ╚══════════════════════════════════╝
+whizmd
 """
-        # The image is usually sent as a separate message or using platform-specific features
-        # For text-based representation, we can mention it:
-        # message += f"\n> ![whizmd]({self.logo_url})" # Markdown style, may not render in all consoles
+        # The image (self.logo_url) is usually sent as a separate message
+        # or using platform-specific features for displaying it alongside text.
+        # This template provides the text part.
         return message
 
     def get_ping_message(self, ping_time, uptime, load_avg):

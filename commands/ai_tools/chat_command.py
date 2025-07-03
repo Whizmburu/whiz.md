@@ -4,8 +4,9 @@
 # Also needs a way to store chat history per user/chat session.
 # This can be complex (in-memory with limits, or database).
 
-import openai # Placeholder for actual SDK
+from openai import OpenAI, APIError
 from datetime import datetime, timedelta
+import asyncio # For asyncio.sleep in placeholder if needed, not directly for API call here
 
 # In-memory storage for chat sessions (lost on restart)
 # Structure: {user_id: {"history": [{"role": "user/assistant", "content": "text"}], "last_active": datetime}}
@@ -64,44 +65,62 @@ async def handle_chat(message, args, client, bot_instance):
         CHAT_SESSIONS[user_id]["history"] = [CHAT_SESSIONS[user_id]["history"][0]] + CHAT_SESSIONS[user_id]["history"][-max_history_len+1:]
 
 
-    # openai.api_key = api_key # Example for older openai lib
+    # Re-use client getter or define locally for this module
+    _openai_clients_chat = {}
+    def get_openai_client_chat(key):
+        if key not in _openai_clients_chat:
+            _openai_clients_chat[key] = OpenAI(api_key=key)
+        return _openai_clients_chat[key]
+
+    ai_client = get_openai_client_chat(api_key)
+    reply_target = getattr(message, 'reply', print)
+    response_message = ""
+    ai_response_text = ""
+
     try:
-        # Example using hypothetical OpenAI client
-        # from openai import OpenAI
-        # ai_client = OpenAI(api_key=api_key)
-        # response = ai_client.chat.completions.create(
-        #     model="gpt-3.5-turbo",
-        #     messages=CHAT_SESSIONS[user_id]["history"]
-        # )
-        # ai_response_text = response.choices[0].message.content.strip()
+        # await reply_target(f"🤔 Processing your message...") # Optional thinking message
 
-        # Placeholder response:
-        await asyncio.sleep(0.8) # Simulate API call
-        ai_response_text = f"AI thinking... You said: \"{user_input[:50]}...\".\n" \
-                           f"This is a placeholder AI response. (Session length: {len(CHAT_SESSIONS[user_id]['history'])})"
+        # Synchronous client call - consider executor for async in production
+        completion = ai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=CHAT_SESSIONS[user_id]["history"] # Pass the current session history
+        )
 
-        # Add AI response to history
-        CHAT_SESSIONS[user_id]["history"].append({"role": "assistant", "content": ai_response_text})
-        response_message = ai_response_text # Direct reply, no "AI Response:" prefix for chat feel
+        if completion.choices and completion.choices[0].message:
+            ai_response_text = completion.choices[0].message.content.strip()
+            # Add AI response to history
+            CHAT_SESSIONS[user_id]["history"].append({"role": "assistant", "content": ai_response_text})
+            response_message = ai_response_text # Direct reply for chat feel
+        else:
+            ai_response_text = "The AI returned an empty or unexpected response."
+            response_message = f"⚠️ {ai_response_text}"
+            # Don't add empty assistant messages to history
 
-    except openai.APIError as e:
-        # bot_instance.logger.error(f"OpenAI API error for /chat: {e}", exc_info=True)
-        print(f"OpenAI API error for /chat: {e}")
-        response_message = f"⚠️ Sorry, there was an error communicating with the AI: {str(e)}\nSession might be affected."
-        # Optionally remove last user message from history if API call failed
-        if CHAT_SESSIONS[user_id]["history"] and CHAT_SESSIONS[user_id]["history"][-1]["role"] == "user":
+    except APIError as e:
+        print(f"OpenAI API error for /chat: {e.status_code} - {e.message}")
+        error_detail = str(e.message)[:100]
+        if e.status_code == 401:
+             response_message = "⚠️ OpenAI API Key is invalid. Contact owner."
+        elif e.status_code == 429: # Rate limit
+            response_message = "⚠️ AI service rate limit exceeded. Please try again later."
+        elif e.status_code == 400 and "context_length_exceeded" in str(e.message).lower():
+            response_message = "⚠️ Conversation history is too long for the AI model. Session has been reset. Please try again."
+            # Reset this user's session due to context overflow
+            del CHAT_SESSIONS[user_id]
+        else:
+            response_message = f"⚠️ An API error occurred with the AI chat service: {error_detail}"
+
+        # If API call failed, remove the last user message from history to prevent resending it next time
+        if user_id in CHAT_SESSIONS and CHAT_SESSIONS[user_id]["history"] and CHAT_SESSIONS[user_id]["history"][-1]["role"] == "user":
             CHAT_SESSIONS[user_id]["history"].pop()
+
     except Exception as e:
-        # bot_instance.logger.error(f"Unexpected error in /chat: {e}", exc_info=True)
         print(f"Unexpected error in /chat: {e}")
-        response_message = f"⚠️ An unexpected error occurred: {str(e)}"
-        if CHAT_SESSIONS[user_id]["history"] and CHAT_SESSIONS[user_id]["history"][-1]["role"] == "user":
+        response_message = f"⚠️ An unexpected error occurred: {str(e)[:100]}"
+        if user_id in CHAT_SESSIONS and CHAT_SESSIONS[user_id]["history"] and CHAT_SESSIONS[user_id]["history"][-1]["role"] == "user":
             CHAT_SESSIONS[user_id]["history"].pop()
 
-
-    # await message.reply(response_message) # Placeholder
-    print(f"Output for /chat (to {user_id}):\n{response_message}")
-    print("Reminder: An AI library, API key, and session management are crucial for /chat.")
+    await reply_target(response_message)
 
 if __name__ == '__main__':
     import asyncio

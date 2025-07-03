@@ -32,6 +32,26 @@ class Config:
         # Logging configuration (example)
         self.log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 
+        # Bot's actual WhatsApp number (used for /invite command)
+        self.bot_whatsapp_number = os.getenv("BOT_WHATSAPP_NUMBER")
+
+        # External API Keys
+        self.openweathermap_api_key = os.getenv("OPENWEATHERMAP_API_KEY")
+        # self.another_api_key = os.getenv("ANOTHER_API_KEY") # Example for future keys
+
+        # Bot Owner JID (or number, depending on WhatsApp lib)
+        self.owner_jid = os.getenv("OWNER_JID")
+
+        # Feature Flags & Settings from .env
+        self.auto_view_react_statuses_enabled = os.getenv("AUTO_VIEW_REACT_STATUSES_ENABLED", "false").lower() == "true"
+
+        raw_emojis = os.getenv("STATUS_REACTION_EMOJIS")
+        if raw_emojis:
+            self.status_reaction_emojis = [emoji.strip() for emoji in raw_emojis.split(',')]
+        else: # Default if not set or empty
+            self.status_reaction_emojis = ["👍", "🔥", "❤️", "😂", "😮", "🎉", "💯"] # Default list from spec/common usage
+
+
     def validate_session_id(self):
         """
         Validates the SESSION_ID.

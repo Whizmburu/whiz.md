@@ -3,9 +3,24 @@
 # Add relevant library (e.g., 'openai') to requirements.txt.
 # Requires API key for the image generation service in .env (e.g., OPENAI_API_KEY).
 
-import openai # Placeholder for actual SDK
+from openai import OpenAI, APIError
 from io import BytesIO # To handle image data
 import requests # If image is returned as URL and needs to be downloaded
+import asyncio # For sleep and async def
+
+# Reuse the client getter from ask_command or define locally if preferred
+# For simplicity, let's assume ask_command's _openai_clients and get_openai_client are accessible
+# If not, they should be defined here or in a shared utility.
+# from .ask_command import get_openai_client # This creates a circular dependency if ask_command imports from here.
+# Let's define it locally or move to a shared util if many commands use it.
+
+# Re-defining for clarity, or use a shared AI utils module later.
+_openai_clients_img = {}
+def get_openai_client_img(api_key):
+    if api_key not in _openai_clients_img:
+        _openai_clients_img[api_key] = OpenAI(api_key=api_key)
+    return _openai_clients_img[api_key]
+
 
 async def handle_imagegen(message, args, client, bot_instance):
     """
@@ -26,63 +41,77 @@ async def handle_imagegen(message, args, client, bot_instance):
         print("Error: OPENAI_API_KEY not found in config for /imagegen command.")
         return
 
-    # openai.api_key = api_key # Example for older openai lib versions
-    await message.reply(f"🎨 Generating image for prompt: \"{prompt[:100]}{'...' if len(prompt)>100 else ''}\". This might take a moment...")
+    ai_client = get_openai_client_img(api_key) # Use the local or imported client getter
+    reply_target = getattr(message, 'reply', print) # Helper for replies
+
+    await reply_target(f"🎨 Generating image for prompt: \"{prompt[:100]}{'...' if len(prompt)>100 else ''}\". This might take a moment...")
+
+    image_bytes = None
+    response_message = ""
 
     try:
-        # Example using a hypothetical openai client for DALL-E
-        # from openai import OpenAI
-        # ai_client = OpenAI(api_key=api_key)
-        # response = ai_client.images.generate(
-        #     model="dall-e-3", # Or "dall-e-2" or other model
-        #     prompt=prompt,
-        #     n=1, # Number of images to generate
-        #     size="1024x1024" # Or other supported sizes
-        #     # response_format="url" or "b64_json"
-        # )
-        # image_url = response.data[0].url # If response_format is 'url'
-        # image_b64 = response.data[0].b64_json # If response_format is 'b64_json'
+        # Using OpenAI DALL-E for image generation
+        # Note: dall-e-2 is cheaper and faster, dall-e-3 has higher quality.
+        # Ensure the API key has DALL-E access.
+        # Synchronous client call - consider executor for async if this blocks too long.
+        img_response = ai_client.images.generate(
+            model="dall-e-2",  # Or "dall-e-3" if preferred and key supports it
+            prompt=prompt,
+            n=1,               # Number of images to generate
+            size="1024x1024",  # Supported sizes: "256x256", "512x512", "1024x1024" for DALL-E 2
+                               # DALL-E 3 supports "1024x1024", "1024x1792", "1792x1024"
+            response_format="url"  # "url" or "b64_json"
+        )
 
-        # Placeholder response for now:
-        await asyncio.sleep(2) # Simulate API call delay
-        # In a real scenario, you'd get an image URL or base64 data.
-        # For placeholder, we'll just confirm.
+        if img_response.data and img_response.data[0].url:
+            image_url = img_response.data[0].url
+            # Download the image from the URL
+            # Again, using synchronous requests here. Consider aiohttp for full async.
+            print(f"Generated image URL: {image_url}. Downloading...")
+            http_response = requests.get(image_url, timeout=30) # Increased timeout for image download
+            http_response.raise_for_status() # Check for download errors
+            image_bytes = BytesIO(http_response.content)
 
-        # If you get a URL, you'd download it:
-        # image_response = requests.get(image_url, timeout=20)
-        # image_response.raise_for_status()
-        # image_bytes = BytesIO(image_response.content)
+            # Placeholder for sending the image
+            if hasattr(client, 'send_image_simulation') and image_bytes: # Check if image_bytes is not None
+                 await client.send_image_simulation(
+                     chat_id=getattr(message, 'sender', 'unknown_chat'), # Use sender as chat_id for mock
+                     image=image_bytes,
+                     caption=f"🖼️ AI Generated Image for: \"{prompt[:150]}{'...' if len(prompt)>150 else ''}\""
+                 )
+                 response_message = f"Image for \"{prompt[:30]}...\" sent!" # Confirmation after simulated send
+                 await reply_target(response_message)
+            elif image_bytes: # If no simulation method, just confirm success
+                response_message = f"🖼️ Image generated and downloaded for: \"{prompt}\". (Ready to be sent)"
+                await reply_target(response_message)
+            else:
+                response_message = "⚠️ Image generated but could not prepare it for sending."
+                await reply_target(response_message)
 
-        # If you get b64_json:
-        # import base64
-        # image_bytes = BytesIO(base64.b64decode(image_b64))
+        else:
+            response_message = "⚠️ AI image service did not return image data."
+            await reply_target(response_message)
 
-        # Placeholder for sending the image:
-        # await client.send_image(
-        #     message.chat_id,
-        #     image=image_bytes,
-        #     caption=f"🖼️ AI Generated Image for: \"{prompt[:150]}{'...' if len(prompt)>150 else ''}\""
-        # )
-
-        final_message = f"🖼️ Image generated for: \"{prompt}\". (Imagine a cool image is sent here!)"
-        print(f"Output for /imagegen: {final_message} (API Key: ...{api_key[-4:]})")
-        await message.reply(final_message)
-
-
-    except openai.APIError as e: # Catch specific API errors
-        # bot_instance.logger.error(f"OpenAI API error for /imagegen: {e}", exc_info=True)
-        print(f"OpenAI API error for /imagegen: {e}")
-        await message.reply(f"⚠️ Sorry, there was an error with the AI image service: {str(e)}")
-    except requests.exceptions.RequestException as e: # If downloading image from URL
-        # bot_instance.logger.error(f"Error downloading generated image: {e}", exc_info=True)
+    except APIError as e:
+        print(f"OpenAI API error for /imagegen: {e.status_code} - {e.message}")
+        error_detail = str(e.message)[:100]
+        if e.status_code == 401:
+             response_message = "⚠️ OpenAI API Key is invalid or lacks DALL-E permission. Contact owner."
+        elif e.status_code == 429:
+            response_message = "⚠️ AI image service rate limit exceeded. Please try again later."
+        elif "billing" in str(e.message).lower() or "quota" in str(e.message).lower():
+             response_message = "⚠️ There's an issue with the API account billing or quota. Contact owner."
+        elif e.status_code == 400 and "safety system" in str(e.message).lower(): # Content policy violation
+            response_message = "⚠️ Your prompt was rejected by the AI's safety system. Please try a different prompt."
+        else:
+            response_message = f"⚠️ An API error occurred with the AI image service: {error_detail}"
+        await reply_target(response_message)
+    except requests.exceptions.RequestException as e:
         print(f"Error downloading generated image: {e}")
-        await message.reply(f"⚠️ Image generated, but failed to download it: {str(e)}")
+        await reply_target(f"⚠️ Image generated by AI, but failed to download it: {str(e)[:100]}")
     except Exception as e:
-        # bot_instance.logger.error(f"Unexpected error in /imagegen: {e}", exc_info=True)
         print(f"Unexpected error in /imagegen: {e}")
-        await message.reply(f"⚠️ An unexpected error occurred: {str(e)}")
-
-    print("Reminder: An AI library (e.g., 'openai') and API key for image generation are required.")
+        await reply_target(f"⚠️ An unexpected error occurred: {str(e)[:100]}")
 
 
 if __name__ == '__main__':
