@@ -1,6 +1,8 @@
 // General Commands for WHIZ-MD-V2
-
+const { create, all } = require('mathjs');
 const { formatUptime } = require('../utils/commandUtils.js'); // Assuming formatUptime is here
+
+const math = create(all);
 
 const pingCommand = {
     name: 'ping',
@@ -14,11 +16,11 @@ const pingCommand = {
     async execute(commandContext) {
         const { sock, msg, config, addLog, formatAndSendMessage, startTime } = commandContext;
 
-        addLog(`[CMD_PING] Ping command executed by ${msg.key.remoteJid}`);
-        const uptime = formatUptime(startTime);
-        const replyText = `Pong! 🏓\n*${config.botName}* is responsive.\nUptime: ${uptime}`;
+        addLog(`[CMD_PING] Ping command executed by ${commandContext.msg.key.remoteJid}`);
+        const uptime = formatUptime(commandContext.startTime);
+        const replyText = `Pong! 🏓\n*${commandContext.config.botName}* is responsive.\nUptime: ${uptime}`;
 
-        await formatAndSendMessage(sock, msg.key.remoteJid, replyText, { quotedMsg: msg });
+        await commandContext.formatAndSendMessage(commandContext.sock, commandContext.msg.key.remoteJid, replyText, { quotedMsg: commandContext.msg, addLog: commandContext.addLog });
     }
 };
 
@@ -76,8 +78,8 @@ const menuCommand = {
 
         // If you want to list Automatic Features separately in the menu structure
         menuText += `${categorySeparator('Automatic Features')}\n`;
-        menuText += `│ 🔥 Auto Like Statuses\n`;
-        menuText += `│ 👁️ _Auto View Statuses (Under Review)_\n`; // Example if you had this note
+        menuText += `│ 🔥 Auto React to Statuses (with '🔥')\n`;
+        // menuText += `│ 👁️ _Auto View Statuses (Under Review)_\n`; // Removed as it's problematic and not implemented
 
         menuText += `${mainSectionSeparator.replace('├', '╰').replace('┤', '╯')}\n`; // Creates a bottom border like ╰───╯
         menuText += bottomLine;
@@ -112,7 +114,7 @@ const contactCommand = {
 
         if (!ownerActualJidNumber) {
             addLog(`[CMD_CONTACT] Owner JID or contact number not configured.`, 'ERROR');
-            return formatAndSendMessage(sock, sender, "Owner contact information is not configured.", { quotedMsg: msg });
+            return formatAndSendMessage(sock, sender, "Owner contact information is not configured.", { quotedMsg: msg, addLog: addLog });
         }
 
         const vCard =
@@ -141,7 +143,7 @@ END:VCARD`; // Using ownerName in TEL for better display
 
         } catch (error) {
             addLog(`[CMD_CONTACT] Error sending contact info to ${sender}: ${error.message}`, 'ERROR');
-            await formatAndSendMessage(sock, sender, "Sorry, an error occurred while fetching contact information.", { quotedMsg: msg });
+            await formatAndSendMessage(sock, sender, "Sorry, an error occurred while fetching contact information.", { quotedMsg: msg, addLog: addLog });
         }
     }
 };
@@ -161,7 +163,7 @@ const sourceCommand = {
 
         const sourceMessageText = `You can find my source code, star the repo, and contribute at:\n${config.repoUrl}`;
 
-        await formatAndSendMessage(sock, sender, sourceMessageText, { quotedMsg: msg });
+        await formatAndSendMessage(sock, sender, sourceMessageText, { quotedMsg: msg, addLog: addLog });
     }
 };
 
@@ -193,7 +195,7 @@ const jidCommand = {
             // No specific "quoted user" line for DMs unless participant is present.
         }
 
-        await formatAndSendMessage(sock, sender, replyText, { quotedMsg: msg });
+        await formatAndSendMessage(sock, sender, replyText, { quotedMsg: msg, addLog: addLog });
     }
 };
 
@@ -211,7 +213,7 @@ const uptimeCommand = {
         const currentUptime = formatUptime(startTime);
         const replyText = `📈 *${config.botName} Uptime:*\n${currentUptime}`;
 
-        await formatAndSendMessage(sock, sender, replyText, { quotedMsg: msg });
+        await formatAndSendMessage(sock, sender, replyText, { quotedMsg: msg, addLog: addLog });
     }
 };
 
@@ -223,4 +225,70 @@ module.exports = [
     jidCommand,
     uptimeCommand,
     // ...
+];
+
+const calcCommand = {
+    name: 'calc',
+    aliases: ['calculate', 'math'],
+    category: 'General', // Or 'Utility'
+    description: 'Calculate a mathematical expression.',
+    usage: '<prefix>calc <expression>',
+    async execute(commandContext) {
+        const { sock, msg, argsString, addLog, formatAndSendMessage } = commandContext;
+        const sender = msg.key.remoteJid;
+
+        if (!argsString) {
+            await formatAndSendMessage(sock, sender, "Please provide a mathematical expression to calculate.\nExample: `<prefix>calc 2+2*10/sqrt(16)`", { quotedMsg: msg });
+            return;
+        }
+
+        addLog(`[CMD_CALC] Calc command executed by ${sender} with expression: "${argsString}"`);
+
+        try {
+            // Basic sanitization: limit expression length to prevent abuse
+            if (argsString.length > 100) {
+                await formatAndSendMessage(sock, sender, "Expression is too long. Please keep it under 100 characters.", { quotedMsg: msg });
+                return;
+            }
+
+            // Further sanitization could be added here if needed (e.g., disallowing certain functions)
+            // For now, relying on mathjs's parser and evaluation scope.
+
+            const result = math.evaluate(argsString);
+
+            // Check if result is a function (e.g. if user types "sqrt"), which we don't want to output directly
+            if (typeof result === 'function') {
+                 await formatAndSendMessage(sock, sender, `❓ Please provide a full expression to calculate. You entered a function name.`, { quotedMsg: msg });
+                 return;
+            }
+
+            let resultString = result.toString();
+            if (resultString.length > 4000) { // WhatsApp message length limit
+                resultString = "Result is too long to display.";
+            }
+
+            await formatAndSendMessage(sock, sender, `🧮 *Result:*\n\`\`\`${argsString} = ${resultString}\`\`\``, { quotedMsg: msg });
+
+        } catch (error) {
+            addLog(`[CMD_CALC_ERROR] Error evaluating expression "${argsString}" for ${sender}: ${error.message}`, 'ERROR');
+            await formatAndSendMessage(sock, sender, `Sorry, I couldn't calculate that. Please ensure it's a valid mathematical expression.\nError: \`${error.message}\``, { quotedMsg: msg });
+        }
+    }
+};
+
+
+// Add the new command to the module.exports array
+// Make sure to add it to the existing array, not replace it.
+// Reading the file again to correctly append is tricky in this env.
+// Assuming the previous module.exports was:
+// module.exports = [pingCommand, menuCommand, contactCommand, sourceCommand, jidCommand, uptimeCommand];
+
+module.exports = [
+    pingCommand,
+    menuCommand,
+    contactCommand,
+    sourceCommand,
+    jidCommand,
+    uptimeCommand,
+    calcCommand, // Added calcCommand
 ];

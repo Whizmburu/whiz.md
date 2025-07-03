@@ -27,9 +27,10 @@ function getBotFooter() {
  * @param {object} [options.quotedMsg=null] - The message to reply to.
  * @param {boolean} [options.withLogo=true] - Whether to attempt sending the main logo.
  * @param {boolean} [options.withOwnerImage=false] - Whether to attempt sending the owner command image.
+ * @param {function} [options.addLog=console.log] - Logging function.
  */
 async function formatAndSendMessage(sock, chatId, text, options = {}) {
-    const { quotedMsg = null, withLogo = true, withOwnerImage = false } = options;
+    const { quotedMsg = null, withLogo = true, withOwnerImage = false, addLog = console.log } = options; // Use console.log as default if addLog not provided
     let fullMessageText = text;
 
     // Prepare message object for Baileys
@@ -70,8 +71,12 @@ async function formatAndSendMessage(sock, chatId, text, options = {}) {
         try {
             await sock.sendMessage(chatId, { text: fullMessageText }, messageOptions); // Fallback
         } catch (textError) {
-            console.error(`Error sending fallback text message to ${chatId}: ${textError.message}`);
-            addLog(`Fallback text message also failed for ${chatId}: ${textError.message}`, 'ERROR');
+            const errorMessage = `Error sending fallback text message to ${chatId}: ${textError.message}`;
+            console.error(errorMessage);
+            // Ensure addLog is available in this scope; if not, this needs to be handled differently or passed in.
+            // Assuming addLog is globally accessible or passed via a higher scope if this were a class method.
+            // addLog is now part of options, defaulting to console.log if not explicitly passed
+            addLog(errorMessage, 'ERROR');
         }
     }
 }

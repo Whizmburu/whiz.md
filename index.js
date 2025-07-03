@@ -8,6 +8,7 @@ const {
   getContentType
 } = require('@whiskeysockets/baileys');
 const qrcodeTerminal = require('qrcode-terminal');
+const qrcodeLib = require('qrcode'); // Added for web QR
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -43,6 +44,7 @@ if (!fs.existsSync(BAILEYS_AUTH_PATH)) {
 }
 
 let sock = null;
+let currentQR = null; // Variable to store the current QR code string
 const commandsMap = new Map();
 
 // --- Command Loader ---
@@ -104,15 +106,76 @@ async function connectToWhatsApp() {
     browser: [config.botName, 'Chrome', '120.0'],
   });
 
-  sock.ev.on('connection.update', async (update) => {
+// --- Helper function to generate command list string ---
+function generateCommandListString(loadedCommandsMap, configRef, startTimeRef) {
+    const uptime = formatUptime(startTimeRef);
+    const lineRepeatCount = 35; // Consistent with menu command
+
+    const topBorder = `╭─⊷ ${configRef.botName} v${configRef.botVersion} ⊶─╮`;
+    const bottomLine = `╰─⊷ Type ${configRef.prefixes[0]}menu for more details! ⊶─╯`;
+    const mainSectionSeparator = `├${'─'.repeat(lineRepeatCount)}┤`;
+    const categorySeparator = (title) => `├─⊷ ${title.toUpperCase()} ⊶─┤`;
+
+    let listText = `${topBorder}\n`;
+    listText += `│ Owner   : ${configRef.ownerName}\n`;
+    listText += `│ Prefix  : ${configRef.prefixes.join(' ')}\n`;
+    listText += `│ Uptime  : ${uptime}\n`;
+    // listText += `│ Repo    : ${configRef.repoUrl}\n`; // Already in the default startup, could be redundant
+    // listText += `│ Group   : ${formatHiddenLink(configRef.whatsappGroupUrl)}\n`; // Also in footer
+
+    const commandsByCategory = {};
+    const processedCmdNames = new Set(); // To avoid listing aliases as main commands
+
+    loadedCommandsMap.forEach(cmdObj => {
+        if (cmdObj && cmdObj.name && cmdObj.category && !processedCmdNames.has(cmdObj.name.toLowerCase())) {
+            if (!commandsByCategory[cmdObj.category]) {
+                commandsByCategory[cmdObj.category] = [];
+            }
+            commandsByCategory[cmdObj.category].push(cmdObj);
+            processedCmdNames.add(cmdObj.name.toLowerCase());
+        }
+    });
+
+    listText += `${mainSectionSeparator}\n`;
+    listText += `│ *Quick Overview of Commands:*\n`;
+
+    const categoryOrder = ['General', 'Media', 'Utility', 'Search', 'Download', 'Fun', 'Group Admin', 'Owner Only', 'AI & API Tools'];
+
+    for (const category of categoryOrder) {
+        if (commandsByCategory[category] && commandsByCategory[category].length > 0) {
+            listText += `${categorySeparator(category)}\n`;
+            commandsByCategory[category].forEach(cmdDef => {
+                const argsDisplay = cmdDef.usage && cmdDef.usage.includes('<') ? ` ${cmdDef.usage.substring(cmdDef.usage.indexOf('<'))}` : (cmdDef.args ? ` ${cmdDef.args}` : '');
+                listText += `│ ${configRef.prefixes[0]}${cmdDef.name}${argsDisplay}\n`; // Just cmd name for brevity
+            });
+        }
+    }
+    listText += `${mainSectionSeparator.replace('├', '╰').replace('┤', '╯')}\n`;
+    listText += bottomLine;
+    return listText;
+}
+// --- End Helper ---
+
+sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
     if (qr) {
-        addLog('[BAILEYS_CONNECT] QR code received — rendering now in terminal...');
+        currentQR = qr;
+        const qrPageUrl = process.env.RENDER_EXTERNAL_URL ? `${process.env.RENDER_EXTERNAL_URL}/qr-code` : `http://localhost:${WEB_SERVER_PORT}/qr-code`;
+        addLog(`[BAILEYS_CONNECT] QR code received. Scan it by visiting: ${qrPageUrl}`);
+        addLog('[BAILEYS_CONNECT] Fallback QR code will be printed in the terminal shortly.', 'DEBUG');
         qrcodeTerminal.generate(qr, { small: true }, (qrString) => {
-            console.log("\n" + qrString + "\n");
+            console.log("\n" + qrString + "\n"); // Keep terminal QR as fallback
+            addLog('[BAILEYS_CONNECT] Terminal QR code printed.', 'DEBUG');
         });
+    } else {
+        // If there's no new QR, and connection is not open, clear any old QR
+        if (connection !== 'open') {
+            currentQR = null;
+        }
     }
+
     if (connection === 'close') {
+        currentQR = null; // QR is no longer valid
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const reason = DisconnectReason[statusCode] || 'Unknown';
         addLog(`[BAILEYS_CONNECT] Connection closed. Status: ${statusCode} (${reason})`, 'WARNING');
@@ -126,14 +189,28 @@ async function connectToWhatsApp() {
         }
     }
     else if (connection === 'open') {
+      currentQR = null; // Successfully connected, QR no longer needed
       addLog(`[BAILEYS_CONNECT] WhatsApp connection opened successfully. ${config.botName} is now online! 🎉`);
       const botJid = sock.user?.id;
       if (botJid) {
-        const userName = sock.user?.name || sock.user?.notify || botJid.split('@')[0];
-        let startupMessageText = `Hello ${userName} 🤗\nYour Bot (${config.botName} v${config.botVersion}) is running perfectly 💥\n`;
-        startupMessageText += `Repo: ${config.repoUrl}`;
-        await formatAndSendMessage(sock, botJid, startupMessageText, { uptimePrefix: "\nUptime: ", startTime: startTime });
-        addLog("[BAILEYS_CONNECT] Startup notification sent to self.");
+        const userName = sock.user?.name || sock.user?.notify || botJid.split('@')[0].split(':')[0]; // Clean up JID if no name
+
+        // Initial connection message
+        const initialConnectMessage = `👋 Hello ${userName}!\n*${config.botName} v${config.botVersion}* is now online and ready.\n\n🔗 My Repo: ${config.repoUrl}`;
+        // Send initial part, possibly with logo
+        await formatAndSendMessage(sock, botJid, initialConnectMessage, { withLogo: true, addLog: addLog }); // withLogo can be true or false based on preference
+
+        // Generate and send command list as a follow-up message
+        // This avoids making one message extremely long and potentially having formatting issues or image caption limits.
+        if (commandsMap.size > 0) {
+            const commandListMessage = generateCommandListString(commandsMap, config, startTime);
+            // Send command list without logo, as a plain text follow-up for clarity
+            await formatAndSendMessage(sock, botJid, commandListMessage, { withLogo: false, addLog: addLog });
+        } else {
+            await formatAndSendMessage(sock, botJid, "No commands currently loaded. Please check configuration.", { withLogo: false, addLog: addLog });
+        }
+        addLog("[BAILEYS_CONNECT] Startup notifications sent to self.");
+
       } else { addLog("[BAILEYS_CONNECT] Could not determine bot JID for startup message.", 'WARNING');}
     }
   });
@@ -191,7 +268,7 @@ async function connectToWhatsApp() {
                 const isGroup = sender.endsWith('@g.us');
                 if (commandHandler.groupOnly === true && !isGroup) {
                      addLog(`[AUTH_FAIL] Command '${commandName}' used outside a group by ${commandSenderJid}.`, 'WARNING');
-                     return formatAndSendMessage(sock, sender, "This command can only be used in groups.", { quotedMsg: msg });
+                     return formatAndSendMessage(sock, sender, "This command can only be used in groups.", { quotedMsg: msg, addLog: addLog });
                 }
 
                 if (commandHandler.adminOnly === true && isGroup) {
@@ -202,14 +279,14 @@ async function connectToWhatsApp() {
                         const botIsAdmin = admins.includes(sock.user?.id);
                         if (!botIsAdmin) {
                              addLog(`[AUTH_FAIL] Bot is not admin in group ${sender} for admin command '${commandName}'.`, 'WARNING');
-                             return formatAndSendMessage(sock, sender, "I need to be an admin in this group to perform that action.", { quotedMsg: msg });
+                             return formatAndSendMessage(sock, sender, "I need to be an admin in this group to perform that action.", { quotedMsg: msg, addLog: addLog });
                         }
                     }
                     // Optionally, check if user sending command is admin
                     // const senderIsAdmin = admins.includes(commandSenderJid);
                     // if (!senderIsAdmin) {
                     //    addLog(`[AUTH_FAIL] Non-admin user ${commandSenderJid} tried admin command '${commandName}'.`, 'WARNING');
-                    //    return formatAndSendMessage(sock, sender, "Only group admins can use this command.", { quotedMsg: msg });
+                    //    return formatAndSendMessage(sock, sender, "Only group admins can use this command.", { quotedMsg: msg, addLog: addLog });
                     // }
                 }
 
@@ -223,7 +300,7 @@ async function connectToWhatsApp() {
             } catch (error) {
                 addLog(`[CMD_ERROR] Error executing command '${commandName}' for ${sender}: ${error.message}`, 'ERROR');
                 console.error(`Full error for ${commandName}:`, error);
-                await formatAndSendMessage(sock, sender, `Oops! An error occurred while running \`${commandName}\`. Please try again.`, { quotedMsg: msg });
+                await formatAndSendMessage(sock, sender, `Oops! An error occurred while running \`${commandName}\`. Please try again.`, { quotedMsg: msg, addLog: addLog });
             }
         } else {
             addLog(`[MSG_HANDLER] Unknown command '${commandName}' with prefix '${detectedPrefix}' from ${sender}`, 'DEBUG');
@@ -249,10 +326,17 @@ const WEB_SERVER_PORT = process.env.PORT || process.env.BOT_WEB_PORT || 3001;
 app.set('views', path.join(__dirname, 'bot_views'));
 app.set('view engine', 'ejs');
 app.use('/bot-static', express.static(path.join(__dirname, 'bot_public')));
-app.get('/', (_, res) => {
+
+app.get('/', (req, res) => {
     addLog(`[BOT_WEB] Root path '/' accessed.`);
-    res.send(`✅ ${config.botName} Bot v${config.botVersion} is active and running! Access logs at /bot-log.`);
+    res.render('index', {
+        title: `${config.botName} - Home`,
+        botName: config.botName,
+        botVersion: config.botVersion,
+        ownerName: config.ownerName
+    });
 });
+
 app.get('/bot-log', (req, res) => {
     addLog(`[BOT_WEB] /bot-log page accessed.`);
     res.render('log', {
@@ -260,10 +344,64 @@ app.get('/bot-log', (req, res) => {
         MAX_LOG_ENTRIES: MAX_WEB_LOG_ENTRIES
     });
 });
+
+app.get('/qr-code', async (req, res) => {
+    addLog(`[BOT_WEB] /qr-code page accessed.`);
+    if (currentQR) {
+        try {
+            const qrDataUrl = await qrcodeLib.toDataURL(currentQR, { errorCorrectionLevel: 'H' });
+            res.send(`
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Scan QR Code - ${config.botName}</title>
+                    <style>
+                        body { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 90vh; background-color: #f0f0f0; font-family: Arial, sans-serif; }
+                        img { max-width: 80%; max-height: 80vh; border: 1px solid #ccc; padding: 10px; background-color: white; }
+                        p { margin-top: 20px; font-size: 1.2em; }
+                        .instructions { margin-bottom:20px; text-align:center; }
+                    </style>
+                </head>
+                <body>
+                    <div class="instructions">
+                        <h2>Scan QR Code to Connect ${config.botName}</h2>
+                        <p>Open WhatsApp on your phone, go to Linked Devices and scan the QR code below.</p>
+                        <p>This page will not auto-refresh. If connection fails or times out, you might need to restart the bot to get a new QR code.</p>
+                    </div>
+                    <img src="${qrDataUrl}" alt="WhatsApp QR Code">
+                    <p>Status: ${sock && sock.ev && sock.ws.readyState === 1 ? 'Attempting to connect...' : (currentQR ? 'Waiting for scan...' : 'QR Code Expired or Not Available')} </p>
+                </body>
+                </html>
+            `);
+        } catch (err) {
+            addLog(`[BOT_WEB_QR_ERROR] Failed to generate QR code image: ${err.message}`, 'ERROR');
+            res.status(500).send('Error generating QR code. Please check logs.');
+        }
+    } else {
+        res.status(404).send(`
+            <!DOCTYPE html><html lang="en"><head><title>QR Not Found</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding-top: 50px;">
+            <h1>QR Code Not Available</h1>
+            <p>No QR code is currently available for scanning. This might be because:</p>
+            <ul>
+                <li>The bot is already connected.</li>
+                <li>The bot is still starting up.</li>
+                <li>The previous QR code has expired.</li>
+            </ul>
+            <p>Please check the bot's console logs for more information or try restarting the bot if you were expecting a QR code.</p>
+            </body></html>
+        `);
+    }
+});
+
 app.get('/bot-api/logs', (req, res) => { res.json(getBotLogsForWebUI()); });
 app.listen(WEB_SERVER_PORT, () => {
-    addLog(`[BOT_WEB] ${config.botName} v${config.botVersion} status page active on http://localhost:${WEB_SERVER_PORT}/`);
-    addLog(`[BOT_WEB] ${config.botName} v${config.botVersion} log server listening on http://localhost:${WEB_SERVER_PORT}/bot-log`);
+    const baseUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${WEB_SERVER_PORT}`;
+    addLog(`[BOT_WEB] ${config.botName} v${config.botVersion} status page active on ${baseUrl}/`);
+    addLog(`[BOT_WEB] ${config.botName} v${config.botVersion} log server listening on ${baseUrl}/bot-log`);
+    addLog(`[BOT_WEB] If QR code is needed, it will be available at ${baseUrl}/qr-code`);
 });
 // --- End Express Web Server ---
 
